@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:lista_tarefas/layout_test.dart';
 import 'package:lista_tarefas/models/todo.dart';
+import 'package:lista_tarefas/repositories/todo_repository.dart';
+import 'package:lista_tarefas/theme/colors_palette.dart';
 import 'package:lista_tarefas/theme/theme_notifier.dart';
 import 'package:lista_tarefas/widgets/footer_widget.dart';
 import 'package:lista_tarefas/widgets/todo_list_item.dart';
@@ -20,8 +22,10 @@ class _TodoListPageState extends State<TodoListPage> {
   final _label_nova_tarefa = "Adicioner nova tarefa";
   final _tarefa_pendente = "Você possui 0 tarefas pendentes";
   final _limptar_tudo = "Limpar tudo";
+  String? errorText;
 
   final TextEditingController _todoController = TextEditingController();
+  final TodoRepository _todoRepository = TodoRepository();
 
   late ThemeNotifier? _themeNotifier;
   bool? _status;
@@ -37,6 +41,15 @@ class _TodoListPageState extends State<TodoListPage> {
         _status = value;
       });
     });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    _todoRepository.getTodoList().then((value) => setState(() {
+          todos = value;
+        }));
   }
 
   void onChange(bool value) {
@@ -98,6 +111,16 @@ class _TodoListPageState extends State<TodoListPage> {
               hintText: _hint_nova_tarefa.toString(),
               labelText: _label_nova_tarefa.toString(),
               border: const OutlineInputBorder(),
+              errorText: errorText,
+              focusedBorder: OutlineInputBorder(
+                borderSide: BorderSide(
+                  color: ColorsPalette.blue,
+                  width: 2,
+                )
+              ),
+              labelStyle: TextStyle(
+                color: ColorsPalette.blue,
+              )
             ),
           ),
         ),
@@ -107,22 +130,32 @@ class _TodoListPageState extends State<TodoListPage> {
         ElevatedButton(
           child: const Icon(Icons.add),
           style: ElevatedButton.styleFrom(
-            primary: const Color(0xff00D7F3),
+            primary: ColorsPalette.blue,
             padding: const EdgeInsets.all(18),
           ),
           onPressed: () {
             var text = _todoController.text.trim();
 
+            if (text.isEmpty) {
+              setState(() {
+                errorText = 'Título não pode ser vazio';
+              });
+              return;
+            } else {
+              errorText = null;
+            }
+
             var todo = Todo(
               title: text,
               dateTime: DateTime.now(),
-              length: todos.length,
+              length: todos.length + 1,
             );
             if (text != null || text.trim().isNotEmpty) {
               setState(() {
                 todos.add(todo);
               });
               _todoController.clear();
+              _todoRepository.saveTodoList(todos);
             }
           },
         ),
@@ -155,6 +188,8 @@ class _TodoListPageState extends State<TodoListPage> {
         todos.remove(todo);
       });
 
+      _todoRepository.saveTodoList(todos);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -166,10 +201,12 @@ class _TodoListPageState extends State<TodoListPage> {
           backgroundColor: Colors.white,
           action: SnackBarAction(
             label: "Desfazer",
-            textColor: const Color(0xff00D7F3),
+            textColor: ColorsPalette.blue,
             onPressed: () {
-              print("Defazer");
-              todos.insert(deletedTodoPos!, deletedTodo!);
+              setState(() {
+                todos.insert(deletedTodoPos!, deletedTodo!);
+              });
+              _todoRepository.saveTodoList(todos);
             },
           ),
         ),
@@ -193,7 +230,7 @@ class _TodoListPageState extends State<TodoListPage> {
               _limptar_tudo.toString(),
             ),
             style: ElevatedButton.styleFrom(
-              primary: const Color(0xff00D7F3),
+              primary: ColorsPalette.blue,
               padding: const EdgeInsets.all(14),
             ),
             onPressed: showDeleteTodoConfirmationDialog,
@@ -208,11 +245,12 @@ class _TodoListPageState extends State<TodoListPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Limpar tudo?"),
-        content: const Text("Você tem certeza que deseja apagar todas as tarefas?"),
+        content:
+            const Text("Você tem certeza que deseja apagar todas as tarefas?"),
         actions: [
           TextButton(
             style: TextButton.styleFrom(
-              primary: Color(0xff00D7F3),
+              primary: ColorsPalette.blue,
             ),
             child: Text("Cancelar".toUpperCase()),
             onPressed: () {
@@ -238,6 +276,7 @@ class _TodoListPageState extends State<TodoListPage> {
     setState(() {
       todos.clear();
     });
+    _todoRepository.deleteAll();
   }
 
   String footerText() {
